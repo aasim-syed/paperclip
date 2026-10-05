@@ -118,6 +118,19 @@ describe("update command", () => {
     expect(detectInstallMode(entry("lib"), paths, { PNPM_HOME: path.join(root, "custom-pnpm-home") })).toBe("global-npm");
   });
 
+  it("detects a pnpm global install when PNPM_HOME is a symlink", () => {
+    const paths = resolveInstallStorePaths();
+    const realHome = path.join(root, "real-store");
+    const packageDir = path.join(realHome, "global", "node_modules", "paperclipai");
+    fs.mkdirSync(path.join(packageDir, "dist"), { recursive: true });
+    fs.writeFileSync(path.join(packageDir, "dist", "index.js"), "");
+    const linkedHome = path.join(root, "linked-pnpm-home");
+    fs.symlinkSync(realHome, linkedHome, "junction");
+    const entry = path.join(packageDir, "dist", "index.js");
+    expect(detectInstallMode(entry, paths, { PNPM_HOME: linkedHome })).toBe("global-pnpm");
+    expect(detectInstallMode(path.join(linkedHome, "global", "node_modules", "paperclipai", "dist", "index.js"), paths, { PNPM_HOME: realHome })).toBe("global-pnpm");
+  });
+
   it.each([
     ["yarn", [".config", "yarn", "global"], "global-yarn"],
     ["bun", [".bun", "install", "global"], "global-bun"],

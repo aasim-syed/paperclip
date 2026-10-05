@@ -81,6 +81,14 @@ function isWithin(child: string, parent: string): boolean {
   return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
+// PNPM_HOME may itself be a symlink, so compare against both its literal and
+// real path, for both the resolved and unresolved executable.
+function isUnderPnpmHome(real: string, resolved: string, pnpmHome: string): boolean {
+  const homes = [path.resolve(pnpmHome)];
+  try { homes.push(fs.realpathSync(homes[0])); } catch { /* keep the literal path */ }
+  return homes.some((home) => isWithin(real, home) || isWithin(resolved, home));
+}
+
 export function detectInstallMode(executablePath = process.argv[1] ?? "", paths = resolveInstallStorePaths(), env: NodeJS.ProcessEnv = process.env): InstallMode {
   const resolved = path.resolve(executablePath || ".");
   const manifest = readInstallManifest(paths);
@@ -95,7 +103,7 @@ export function detectInstallMode(executablePath = process.argv[1] ?? "", paths 
   // but npm does not own them, so classify them before the npm fallback.
   if (normalized.includes("/node_modules/paperclipai/")) {
     const pnpmHome = env.PNPM_HOME?.trim();
-    if (/\/pnpm\/global\//i.test(normalized) || (pnpmHome && isWithin(real, path.resolve(pnpmHome)))) return "global-pnpm";
+    if (/\/pnpm\/global\//i.test(normalized) || (pnpmHome && isUnderPnpmHome(real, resolved, pnpmHome))) return "global-pnpm";
     if (/\/yarn\/(?:data\/)?global\//i.test(normalized)) return "global-yarn";
     if (normalized.includes("/.bun/install/global/")) return "global-bun";
     return "global-npm";
